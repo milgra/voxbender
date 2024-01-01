@@ -36,9 +36,17 @@ voxbender_inc = include_directories(
 	'src/mt_math')
 
 com_sources = ['src/voxbender/main.c',
+	       'src/voxbender/ku_gl_shader.c',
+	       'src/voxbender/ku_gl_floatbuffer.c',
 	       'src/mt_core/mt_log.c',
 	       'src/mt_core/mt_time.c',
-	       'src/mt_math/mt_vector_2d.c']
+	       'src/mt_core/mt_memory.c',
+	       'src/mt_math/mt_vector_2d.c',
+	       'src/mt_math/mt_vector_3d.c',
+	       'src/mt_math/mt_vector_4d.c',
+	       'src/mt_math/mt_math_3d.c',
+	       'src/mt_math/mt_matrix_4d.c'
+	       ]
 
 executable(
   'voxbender',

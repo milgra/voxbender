@@ -1,6 +1,7 @@
 #include <GL/glew.h>
 #include <SDL.h>
 #include <getopt.h>
+#include <math.h>
 #include <stdio.h>
 #include <time.h>
 #include <unistd.h>
@@ -8,7 +9,11 @@
 #include <GL/gl.h>
 #include <GL/glu.h>
 
+#include "ku_gl_floatbuffer.c"
+#include "ku_gl_shader.c"
 #include "mt_log.c"
+#include "mt_math_3d.c"
+#include "mt_matrix_4d.c"
 #include "mt_time.c"
 #include "mt_vector_2d.c"
 
@@ -16,6 +21,9 @@
     #include <emscripten.h>
     #include <emscripten/html5.h>
 #endif
+
+#define WTH 800.0
+#define HTH 1000.0
 
 char  quit  = 0;
 float scale = 1.0;
@@ -26,9 +34,111 @@ int32_t height = 750;
 SDL_Window*   window;
 SDL_GLContext context;
 
+ku_floatbuffer_t* floatbuffer;
+matrix4array_t    projection = {0};
+float             angle      = 0.0;
+glsha_t           sha;
+uint32_t          start_time;
+uint32_t          frames = 0;
+
+m4_t pers;
+
+void GLAPIENTRY
+MessageCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam)
+{
+    mt_log_debug("GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n", (type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : ""), type, severity, message);
+}
+
 void main_init()
 {
     srand((unsigned int) time(NULL));
+
+    glEnable(GL_DEBUG_OUTPUT);
+    glDebugMessageCallback(MessageCallback, 0);
+    glEnable(GL_BLEND);
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE);
+
+    // program
+
+    char* vsh =
+	"#version 100\n"
+	"attribute vec3 position;"
+	"uniform mat4 projection;"
+	"void main ( )"
+	"{"
+	"    gl_PointSize = 2.0;"
+	"    gl_Position = projection * vec4(position,1.0);"
+	"}";
+
+    char* fsh =
+	"#version 100\n"
+	"void main( )"
+	"{"
+	" gl_FragColor = vec4(1.0,1.0,1.0,1.0);"
+	"}";
+
+    sha = ku_gl_shader_create(
+	vsh,
+	fsh,
+	1,
+	((const char*[]){"position"}),
+	1,
+	((const char*[]){"projection"}));
+
+    glUseProgram(sha.name);
+
+    // vertex buffer
+
+    GLuint vbo;
+
+    glGenBuffers(1, &vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+
+    floatbuffer = ku_floatbuffer_new();
+
+    // perspective
+
+    float screenx      = 1920;
+    float screeny      = 1080;
+    float scale        = 1.0;
+    float camera_fov_y = M_PI / 3.0;
+    float camera_eye_z = (screeny / 2.0) / (tanf(camera_fov_y / 2.0));
+
+    float min = camera_eye_z - (HTH / 2.0) * scale;
+    float max = camera_eye_z + (HTH / 2.0) * scale;
+    if (min < 10.0)
+	min = 10.0;
+
+    // m4_t pers = m4_defaultperspective(camera_fov_y, screenx / screeny, min, max);
+    // m4_t pers = m4_defaultortho(0.0, screenx, 0.0, screeny, -10, 10);
+    pers              = m4_defaultperspective(camera_fov_y, screenx / screeny, 0.1, 500);
+    projection.matrix = pers;
+
+    glUniformMatrix4fv(sha.uni_loc[0], 1, 0, projection.array);
+
+    // upload vertex data
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 12, 0);
+
+    for (int i = 0; i < 10000000; i++)
+    {
+	float data[3];
+	data[0] = -100.0 + (rand() % 200000) / 1000.0;
+	data[1] = -100.0 + (rand() % 200000) / 1000.0;
+	data[2] = -400.0 + (rand() % 200000) / 1000.0;
+
+	ku_floatbuffer_add(floatbuffer, data, 3);
+    }
+
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * floatbuffer->pos, floatbuffer->data, GL_DYNAMIC_DRAW);
+
+    // draw
+
+    glViewport(0, 0, screenx, screeny);
+
+    mt_log_debug("main init");
 }
 
 void main_free()
@@ -94,9 +204,37 @@ int main_loop(double time, void* userdata)
 
     // update simulation
 
-    uint32_t ticks = SDL_GetTicks();
+    glClearColor(0.2, 0.0, 0.0, 0.6);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    m4_t trans100_matrix  = m4_defaulttranslation(0.0, 0.0, 300.0);
+    m4_t transm100_matrix = m4_defaulttranslation(0.0, 0.0, -300.0);
+
+    m4_t angle_matrix = m4_defaultrotation(0.0, angle, 0.0);
+
+    m4_t obj_matrix = trans100_matrix;
+    obj_matrix      = m4_multiply(angle_matrix, obj_matrix);
+    obj_matrix      = m4_multiply(transm100_matrix, obj_matrix);
+    obj_matrix      = m4_multiply(pers, obj_matrix);
+
+    angle += 0.0001;
+
+    projection.matrix = obj_matrix;
+
+    glUniformMatrix4fv(sha.uni_loc[0], 1, 0, projection.array);
+
+    glDrawArrays(GL_POINTS, 0, floatbuffer->pos / 3);
 
     SDL_GL_SwapWindow(window);
+
+    if (SDL_GetTicks() > start_time + 1000)
+    {
+	mt_log_debug("fps : %u", frames);
+	frames     = 0;
+	start_time = SDL_GetTicks();
+    }
+
+    frames++;
 
     return 1;
 }
@@ -200,7 +338,7 @@ int main(int argc, char* argv[])
 
 		// try to set up vsync
 
-		if (SDL_GL_SetSwapInterval(1) < 0)
+		if (SDL_GL_SetSwapInterval(0) < 0)
 		    mt_log_error("SDL swap interval error %s", SDL_GetError());
 
 		main_init();
