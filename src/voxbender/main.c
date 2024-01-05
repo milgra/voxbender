@@ -15,7 +15,9 @@
 #include "mt_math_3d.c"
 #include "mt_matrix_4d.c"
 #include "mt_time.c"
+#include "mt_vector.c"
 #include "mt_vector_2d.c"
+#include "mt_vector_3d.c"
 
 #ifdef EMSCRIPTEN
     #include <emscripten.h>
@@ -42,6 +44,106 @@ uint32_t          start_time;
 uint32_t          frames = 0;
 
 m4_t pers;
+
+typedef struct _cube_t cube_t;
+struct _cube_t
+{
+    v3_t     tlf;  // top left front coord
+    v3_t     brb;  // bottom right back coord
+    float    size; // side size
+    uint32_t color;
+    cube_t*  nodes[8];
+};
+
+/* creates a cube structure on heap */
+
+void cube_delete(void* p)
+{
+    cube_t* cube = p;
+    for (int i = 0; i < 8; i++)
+    {
+	if (cube->nodes[i] != NULL)
+	{
+	    REL(cube->nodes[i]);
+	}
+    }
+}
+
+cube_t* cube_create(uint32_t color, v3_t tlf, v3_t brb)
+{
+    cube_t* cube = CAL(sizeof(cube_t), cube_delete, NULL);
+
+    cube->color = color;
+    cube->size  = brb.x - tlf.x;
+    cube->tlf   = tlf;
+    cube->brb   = brb;
+
+    return cube;
+}
+
+/* inserts new cube for a point creating the intermediate octree */
+
+void cube_insert(cube_t* cube, v3_t point, uint32_t color, float size)
+{
+    if (size < cube->size / 2.0)
+    {
+	if (cube->tlf.x <= point.x && point.x < cube->brb.x &&
+	    cube->tlf.y <= point.y && point.y < cube->brb.y &&
+	    cube->tlf.z <= point.z && point.z < cube->brb.z)
+	{
+
+	    /*B   4 5  */
+	    /*    6 7  */
+	    /*F 0 1    */
+	    /*  2 3    */
+
+	    int octet    = 0;
+	    int focts[2] = {2, 3};
+	    int bocts[4] = {4, 5, 6, 7};
+
+	    if (cube->tlf.x + cube->size / 2.0 < point.x)
+		octet = 1;
+	    if (cube->tlf.y + cube->size / 2.0 < point.y)
+		octet = focts[octet];
+	    if (cube->tlf.z + cube->size / 2.0 < point.z)
+		octet = bocts[octet];
+
+	    float halfsize  = cube->size / 2.0;
+	    int   xsizes[8] = {0.0, halfsize, 0.0, halfsize, 0.0, halfsize, 0.0, halfsize};
+	    int   ysizes[8] = {0.0, 0.0, halfsize, halfsize, 0.0, 0.0, halfsize, halfsize};
+	    int   zsizes[8] = {0.0, 0.0, 0.0, 0.0, halfsize, halfsize, halfsize, halfsize};
+
+	    if (cube->nodes[octet] == NULL)
+	    {
+		float x = cube->tlf.x + xsizes[octet];
+		float y = cube->tlf.y + ysizes[octet];
+		float z = cube->tlf.z + zsizes[octet];
+
+		cube->nodes[octet] = cube_create(
+		    color,
+		    (v3_t){x, y, z},
+		    (v3_t){x + halfsize, y + halfsize, z + halfsize});
+	    }
+
+	    /* current color will be that last existing subnode's color */
+
+	    for (int i = 0; i < 8; i++)
+	    {
+		if (cube->nodes[i] != NULL)
+		{
+		    cube->color = cube->nodes[i]->color;
+		}
+	    }
+	}
+    }
+}
+
+/* get cubes intersected by a line with given size
+ ( multiple cubes can be returned if first cube is transparent */
+
+void cube_trace(cube_t* root, v3_t base, v3_t vector, mt_vector_t* cubes, float size)
+{
+}
 
 void GLAPIENTRY
 MessageCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam)
@@ -74,7 +176,7 @@ void main_init()
 	"#version 100\n"
 	"void main( )"
 	"{"
-	" gl_FragColor = vec4(1.0,1.0,1.0,1.0);"
+	" gl_FragColor = vec4(1.0,1.0,1.0,0.01);"
 	"}";
 
     sha = ku_gl_shader_create(
@@ -121,7 +223,7 @@ void main_init()
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 12, 0);
 
-    for (int i = 0; i < 10000000; i++)
+    for (int i = 0; i < 20000000; i++)
     {
 	float data[3];
 	data[0] = -100.0 + (rand() % 200000) / 1000.0;
@@ -217,7 +319,7 @@ int main_loop(double time, void* userdata)
     obj_matrix      = m4_multiply(transm100_matrix, obj_matrix);
     obj_matrix      = m4_multiply(pers, obj_matrix);
 
-    angle += 0.0001;
+    angle += 0.001;
 
     projection.matrix = obj_matrix;
 
