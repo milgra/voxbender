@@ -69,9 +69,24 @@ void cube_delete(void* p)
     }
 }
 
+void cube_describe(void* p, int level)
+{
+    cube_t* cube = p;
+    cube_t  c    = *cube;
+
+    printf("\nCube TLF %f %f %f BRB %f %f %f SIZE %f COLOR %08x", c.tlf.x, c.tlf.y, c.tlf.z, c.brb.x, c.brb.y, c.brb.z, c.size, c.color);
+    for (int i = 0; i < 8; i++)
+    {
+	if (c.nodes[i])
+	    printf("n%i Y");
+	else
+	    printf("n%i N");
+    }
+}
+
 cube_t* cube_create(uint32_t color, v3_t tlf, v3_t brb)
 {
-    cube_t* cube = CAL(sizeof(cube_t), cube_delete, NULL);
+    cube_t* cube = CAL(sizeof(cube_t), cube_delete, cube_describe);
 
     cube->color = color;
     cube->size  = brb.x - tlf.x;
@@ -83,9 +98,10 @@ cube_t* cube_create(uint32_t color, v3_t tlf, v3_t brb)
 
 /* inserts new cube for a point creating the intermediate octree */
 
-void cube_insert(cube_t* cube, v3_t point, uint32_t color, float size)
+void cube_insert(cube_t* cube, v3_t point, uint32_t color)
 {
-    if (size < cube->size / 2.0)
+    printf("inserting %.2f %.2f %.2f %08x to cube %.2f %.2f %.2f %.2f\n", point.x, point.y, point.z, color, cube->tlf.x, cube->tlf.y, cube->tlf.z, cube->size);
+    if (cube->size > 2.0)
     {
 	if (cube->tlf.x <= point.x && point.x < cube->brb.x &&
 	    cube->tlf.y <= point.y && point.y < cube->brb.y &&
@@ -101,12 +117,9 @@ void cube_insert(cube_t* cube, v3_t point, uint32_t color, float size)
 	    int focts[2] = {2, 3};
 	    int bocts[4] = {4, 5, 6, 7};
 
-	    if (cube->tlf.x + cube->size / 2.0 < point.x)
-		octet = 1;
-	    if (cube->tlf.y + cube->size / 2.0 < point.y)
-		octet = focts[octet];
-	    if (cube->tlf.z + cube->size / 2.0 < point.z)
-		octet = bocts[octet];
+	    if (cube->tlf.x + cube->size / 2.0 < point.x) octet = 1;
+	    if (cube->tlf.y + cube->size / 2.0 < point.y) octet = focts[octet];
+	    if (cube->tlf.z + cube->size / 2.0 < point.z) octet = bocts[octet];
 
 	    float halfsize  = cube->size / 2.0;
 	    int   xsizes[8] = {0.0, halfsize, 0.0, halfsize, 0.0, halfsize, 0.0, halfsize};
@@ -125,7 +138,10 @@ void cube_insert(cube_t* cube, v3_t point, uint32_t color, float size)
 		    (v3_t){x + halfsize, y + halfsize, z + halfsize});
 	    }
 
-	    /* current color will be that last existing subnode's color */
+	    cube_insert(cube->nodes[octet], point, color);
+
+	    /* current color will be that last existing subnode's color
+	       TODO : should  be the average of node colors */
 
 	    for (int i = 0; i < 8; i++)
 	    {
@@ -139,7 +155,8 @@ void cube_insert(cube_t* cube, v3_t point, uint32_t color, float size)
 }
 
 /* get cubes intersected by a line with given size
- ( multiple cubes can be returned if first cube is transparent */
+   multiple cubes can be returned if first cube is transparent
+   in case of refraction modify vector a little */
 
 void cube_trace(cube_t* root, v3_t base, v3_t vector, mt_vector_t* cubes, float size)
 {
@@ -216,6 +233,13 @@ void main_init()
     pers              = m4_defaultperspective(camera_fov_y, screenx / screeny, 0.1, 500);
     projection.matrix = pers;
 
+    cube_t* basecube = cube_create(
+	0,
+	(v3_t){0.0, 0.0, 0.0},
+	(v3_t){100.0, 100.0, 100.0});
+
+    cube_insert(basecube, (v3_t){10.0, 10.0, 10.0}, 0xFFFFFFFF);
+
     glUniformMatrix4fv(sha.uni_loc[0], 1, 0, projection.array);
 
     // upload vertex data
@@ -223,7 +247,7 @@ void main_init()
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 12, 0);
 
-    for (int i = 0; i < 20000000; i++)
+    for (int i = 0; i < 1; i++)
     {
 	float data[3];
 	data[0] = -100.0 + (rand() % 200000) / 1000.0;
@@ -231,7 +255,7 @@ void main_init()
 	data[2] = -400.0 + (rand() % 200000) / 1000.0;
 
 	ku_floatbuffer_add(floatbuffer, data, 3);
-    }
+    };
 
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * floatbuffer->pos, floatbuffer->data, GL_DYNAMIC_DRAW);
