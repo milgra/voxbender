@@ -78,9 +78,9 @@ void cube_describe(void* p, int level)
     for (int i = 0; i < 8; i++)
     {
 	if (c.nodes[i])
-	    printf("n%i Y");
+	    printf("Y");
 	else
-	    printf("n%i N");
+	    printf("N");
     }
 }
 
@@ -100,14 +100,14 @@ cube_t* cube_create(uint32_t color, v3_t tlf, v3_t brb)
 
 void cube_insert(cube_t* cube, v3_t point, uint32_t color)
 {
-    printf("inserting %.2f %.2f %.2f %08x to cube %.2f %.2f %.2f %.2f\n", point.x, point.y, point.z, color, cube->tlf.x, cube->tlf.y, cube->tlf.z, cube->size);
+    if (cube->size > 99.0) printf("inserting point %.2f %.2f %.2f\n", point.x, point.y, point.z);
+
     if (cube->size > 2.0)
     {
 	if (cube->tlf.x <= point.x && point.x < cube->brb.x &&
 	    cube->tlf.y <= point.y && point.y < cube->brb.y &&
 	    cube->tlf.z <= point.z && point.z < cube->brb.z)
 	{
-
 	    /*B   4 5  */
 	    /*    6 7  */
 	    /*F 0 1    */
@@ -122,9 +122,9 @@ void cube_insert(cube_t* cube, v3_t point, uint32_t color)
 	    if (cube->tlf.z + cube->size / 2.0 < point.z) octet = bocts[octet];
 
 	    float halfsize  = cube->size / 2.0;
-	    int   xsizes[8] = {0.0, halfsize, 0.0, halfsize, 0.0, halfsize, 0.0, halfsize};
-	    int   ysizes[8] = {0.0, 0.0, halfsize, halfsize, 0.0, 0.0, halfsize, halfsize};
-	    int   zsizes[8] = {0.0, 0.0, 0.0, 0.0, halfsize, halfsize, halfsize, halfsize};
+	    float xsizes[8] = {0.0, halfsize, 0.0, halfsize, 0.0, halfsize, 0.0, halfsize};
+	    float ysizes[8] = {0.0, 0.0, halfsize, halfsize, 0.0, 0.0, halfsize, halfsize};
+	    float zsizes[8] = {0.0, 0.0, 0.0, 0.0, halfsize, halfsize, halfsize, halfsize};
 
 	    if (cube->nodes[octet] == NULL)
 	    {
@@ -136,6 +136,8 @@ void cube_insert(cube_t* cube, v3_t point, uint32_t color)
 		    color,
 		    (v3_t){x, y, z},
 		    (v3_t){x + halfsize, y + halfsize, z + halfsize});
+
+		printf("inserting into cube %.2f %.2f %.2f %.2f %.2f %.2f %.2f at octet %i\n", cube->tlf.x, cube->tlf.y, cube->tlf.z, cube->brb.x, cube->brb.y, cube->brb.z, cube->size, octet);
 	    }
 
 	    cube_insert(cube->nodes[octet], point, color);
@@ -160,6 +162,16 @@ void cube_insert(cube_t* cube, v3_t point, uint32_t color)
 
 void cube_trace(cube_t* root, v3_t base, v3_t vector, mt_vector_t* cubes, float size)
 {
+}
+
+void collect_visible_cubes(cube_t* cube, m4_t matrix, int width, int height)
+{
+    for (int x = 0; x < width; x++)
+    {
+	for (int y = 0; y < height; y++)
+	{
+	}
+    }
 }
 
 void GLAPIENTRY
@@ -193,7 +205,7 @@ void main_init()
 	"#version 100\n"
 	"void main( )"
 	"{"
-	" gl_FragColor = vec4(1.0,1.0,1.0,0.01);"
+	" gl_FragColor = vec4(1.0,1.0,1.0,1.0);"
 	"}";
 
     sha = ku_gl_shader_create(
@@ -242,12 +254,14 @@ void main_init()
 
     glUniformMatrix4fv(sha.uni_loc[0], 1, 0, projection.array);
 
+    collect_visible_cubes(basecube, pers, 1280, 1024);
+
     // upload vertex data
 
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 12, 0);
 
-    for (int i = 0; i < 1; i++)
+    for (int i = 0; i < 2; i++)
     {
 	float data[3];
 	data[0] = -100.0 + (rand() % 200000) / 1000.0;
