@@ -160,26 +160,51 @@ void cube_insert(cube_t* cube, v3_t point, uint32_t color)
    multiple cubes can be returned if first cube is transparent
    in case of refraction modify vector a little */
 
-void cube_trace(cube_t* root, v3_t base, v3_t vector, mt_vector_t* cubes, float size)
+void cube_trace(cube_t* root, v3_t base, v3_t vector, float size)
 {
 }
 
+cube_t* basecube;
+
 void collect_visible_cubes(cube_t* cube)
 {
-    v3_t cfp = (v3_t){0.0, 20.0, -200.0}; // camera focus point
-    v3_t ctp = (v3_t){0.0, 20.0, 0.0};    // camera target point
-    v3_t slt = {0};                       // screen left top
-    v3_t srb = {0};                       // screen right bottom
+    int scr_ww = 6; // screen window width
+    int scr_wh = 4; // screen window height
 
-    for (int x = 0; x < width; x++)
+    float cam_ww = 100.0; // camera window width
+    float cam_wh = 80.0;  // camera window height
+
+    v3_t cam_fp = (v3_t){0.0, 0.0, 200.0}; // camera focus point
+    v3_t cam_tp = (v3_t){0.0, 0.0, 0.0};   // camera target point
+
+    v3_t cam_v = v3_sub(cam_fp, cam_tp); // camera vector
+    v3_t ver_v = {0.0, 1.0, 0.0};        // vertical vector
+
+    v3_t scr_hv = v3_resize(v3_cross(cam_v, ver_v), cam_ww);  // screen horizontal vector
+    v3_t scr_vv = v3_resize(v3_cross(cam_v, scr_hv), cam_wh); // screen vertical vector
+
+    v3_t sl  = v3_add(cam_tp, v3_resize(scr_hv, cam_ww / 2.0)); // screen left
+    v3_t slt = v3_add(sl, v3_resize(scr_vv, cam_wh / 2.0));     // screen left top
+
+    mt_log_debug("screen left top %f %f %f", slt.x, slt.y, slt.z);
+
+    for (int y = 0; y < scr_wh; y++)
     {
-	for (int y = 0; y < height; y++)
+	float vr = (cam_wh / scr_wh) * (float) y;
+	for (int x = 0; x < scr_ww; x++)
 	{
-	    v3_t ctp = {0}; // camera target point
-	    v3_t ctv = {0}; // camera target vector
+	    float hr = (cam_ww / scr_ww) * (float) x;
 
-	    // look forintersecting voxels
-	    // d = | (x2 - x1) x ( x1 - x0 ) | / | x2 - x1 |
+	    v3_t cp = v3_add(slt, v3_resize(scr_hv, -hr)); // current point
+	    cp      = v3_add(cp, v3_resize(scr_vv, -vr));
+
+	    printf("%i:%i - %.3f %.3f %.3f\n", y, x, cp.x, cp.y, cp.z);
+
+	    v3_t csv = v3_sub(cp, cam_fp); // current screen vector
+
+	    // get color of closest voxel at given detail
+
+	    cube_trace(cube, cp, csv, 50.0);
 	}
     }
 }
@@ -255,7 +280,7 @@ void main_init()
     pers              = m4_defaultperspective(camera_fov_y, screenx / screeny, 0.1, 500);
     projection.matrix = pers;
 
-    cube_t* basecube = cube_create(
+    basecube = cube_create(
 	0,
 	(v3_t){0.0, 0.0, 0.0},
 	(v3_t){100.0, 100.0, 100.0});
@@ -293,6 +318,7 @@ void main_init()
 
 void main_free()
 {
+    REL(basecube);
 }
 
 char drag = 0;

@@ -13,6 +13,7 @@ v3_t v3_init(float x, float y, float z);
 v3_t v3_add(v3_t a, v3_t b);
 v3_t v3_sub(v3_t a, v3_t b);
 v3_t v3_scale(v3_t a, float f);
+v3_t v3_resize(v3_t a, float length);
 v3_t v3_cross(v3_t left, v3_t right);
 v3_t v3_normalize(v3_t matrix);
 
@@ -81,6 +82,16 @@ v3_t v3_scale(v3_t a, float f)
     result.z = a.z * f;
 
     return result;
+}
+
+/* resizes vector */
+
+v3_t v3_resize(v3_t a, float length)
+{
+    float ratio = length / v3_length(a);
+    v3_t  v     = v3_scale(a, ratio);
+
+    return v;
 }
 
 /* creates cross product of two vectors */
