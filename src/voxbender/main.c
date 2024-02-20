@@ -164,12 +164,22 @@ void cube_trace(cube_t* root, v3_t base, v3_t vector, mt_vector_t* cubes, float 
 {
 }
 
-void collect_visible_cubes(cube_t* cube, m4_t matrix, int width, int height)
+void collect_visible_cubes(cube_t* cube)
 {
+    v3_t cfp = (v3_t){0.0, 20.0, -200.0}; // camera focus point
+    v3_t ctp = (v3_t){0.0, 20.0, 0.0};    // camera target point
+    v3_t slt = {0};                       // screen left top
+    v3_t srb = {0};                       // screen right bottom
+
     for (int x = 0; x < width; x++)
     {
 	for (int y = 0; y < height; y++)
 	{
+	    v3_t ctp = {0}; // camera target point
+	    v3_t ctv = {0}; // camera target vector
+
+	    // look forintersecting voxels
+	    // d = | (x2 - x1) x ( x1 - x0 ) | / | x2 - x1 |
 	}
     }
 }
@@ -254,7 +264,7 @@ void main_init()
 
     glUniformMatrix4fv(sha.uni_loc[0], 1, 0, projection.array);
 
-    collect_visible_cubes(basecube, pers, 1280, 1024);
+    collect_visible_cubes(basecube);
 
     // upload vertex data
 
