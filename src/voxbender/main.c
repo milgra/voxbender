@@ -100,8 +100,6 @@ cube_t* cube_create(uint32_t color, v3_t tlf, v3_t brb)
 
 void cube_insert(cube_t* cube, v3_t point, uint32_t color)
 {
-    if (cube->size > 99.0) printf("inserting point %.2f %.2f %.2f\n", point.x, point.y, point.z);
-
     if (cube->size > 2.0)
     {
 	if (cube->tlf.x <= point.x && point.x < cube->brb.x &&
@@ -112,25 +110,26 @@ void cube_insert(cube_t* cube, v3_t point, uint32_t color)
 	    /*    6 7  */
 	    /*F 0 1    */
 	    /*  2 3    */
+	    /* do speed tests on static const vs simple vars */
+	    static const int focts[2] = {2, 3};
+	    static const int bocts[4] = {4, 5, 6, 7};
+
+	    static const float xsizes[8] = {0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0};
+	    static const float ysizes[8] = {0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0};
+	    static const float zsizes[8] = {0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0};
 
 	    int octet    = 0;
-	    int focts[2] = {2, 3};
-	    int bocts[4] = {4, 5, 6, 7};
-
-	    if (cube->tlf.x + cube->size / 2.0 < point.x) octet = 1;
-	    if (cube->tlf.y + cube->size / 2.0 < point.y) octet = focts[octet];
-	    if (cube->tlf.z + cube->size / 2.0 < point.z) octet = bocts[octet];
-
 	    float halfsize  = cube->size / 2.0;
-	    float xsizes[8] = {0.0, halfsize, 0.0, halfsize, 0.0, halfsize, 0.0, halfsize};
-	    float ysizes[8] = {0.0, 0.0, halfsize, halfsize, 0.0, 0.0, halfsize, halfsize};
-	    float zsizes[8] = {0.0, 0.0, 0.0, 0.0, halfsize, halfsize, halfsize, halfsize};
+
+	    if (cube->tlf.x + halfsize < point.x) octet = 1;
+	    if (cube->tlf.y + halfsize < point.y) octet = focts[octet];
+	    if (cube->tlf.z + halfsize < point.z) octet = bocts[octet];
 
 	    if (cube->nodes[octet] == NULL)
 	    {
-		float x = cube->tlf.x + xsizes[octet];
-		float y = cube->tlf.y + ysizes[octet];
-		float z = cube->tlf.z + zsizes[octet];
+		float x = cube->tlf.x + xsizes[octet] * halfsize;
+		float y = cube->tlf.y + ysizes[octet] * halfsize;
+		float z = cube->tlf.z + zsizes[octet] * halfsize;
 
 		cube->nodes[octet] = cube_create(
 		    color,
