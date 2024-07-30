@@ -74,7 +74,7 @@ void cube_describe(void* p, int level)
     cube_t* cube = p;
     cube_t  c    = *cube;
 
-    printf("\nCube TLF %f %f %f BRB %f %f %f SIZE %f COLOR %08x", c.tlf.x, c.tlf.y, c.tlf.z, c.brb.x, c.brb.y, c.brb.z, c.size, c.color);
+    printf("\nCube TLF %.2f %.2f %.2f BRB %.2f %.2f %.2f SIZE %.2f COLOR %08x NODES ", c.tlf.x, c.tlf.y, c.tlf.z, c.brb.x, c.brb.y, c.brb.z, c.size, c.color);
     for (int i = 0; i < 8; i++)
     {
 	if (c.nodes[i])
@@ -82,7 +82,16 @@ void cube_describe(void* p, int level)
 	else
 	    printf("N");
     }
+    printf("\n");
 }
+
+/*B     4 - 5  */
+/*     /|   |  */
+/*    / 6 - 7  */
+/*   /     /   */
+/*F 0 - 1 /    */
+/*  |   |/     */
+/*  2 - 3      */
 
 cube_t* cube_create(uint32_t color, v3_t tlf, v3_t brb)
 {
@@ -100,16 +109,13 @@ cube_t* cube_create(uint32_t color, v3_t tlf, v3_t brb)
 
 void cube_insert(cube_t* cube, v3_t point, uint32_t color)
 {
-    if (cube->size > 2.0)
+    if (cube->size > 30.0)
     {
 	if (cube->tlf.x <= point.x && point.x < cube->brb.x &&
 	    cube->tlf.y <= point.y && point.y < cube->brb.y &&
 	    cube->tlf.z <= point.z && point.z < cube->brb.z)
 	{
-	    /*B   4 5  */
-	    /*    6 7  */
-	    /*F 0 1    */
-	    /*  2 3    */
+
 	    /* do speed tests on static const vs simple vars */
 	    static const int focts[2] = {2, 3};
 	    static const int bocts[4] = {4, 5, 6, 7};
@@ -118,8 +124,8 @@ void cube_insert(cube_t* cube, v3_t point, uint32_t color)
 	    static const float ysizes[8] = {0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0};
 	    static const float zsizes[8] = {0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0};
 
-	    int octet    = 0;
-	    float halfsize  = cube->size / 2.0;
+	    int   octet    = 0;
+	    float halfsize = cube->size / 2.0;
 
 	    if (cube->tlf.x + halfsize < point.x) octet = 1;
 	    if (cube->tlf.y + halfsize < point.y) octet = focts[octet];
@@ -136,7 +142,7 @@ void cube_insert(cube_t* cube, v3_t point, uint32_t color)
 		    (v3_t){x, y, z},
 		    (v3_t){x + halfsize, y + halfsize, z + halfsize});
 
-		printf("inserting into cube %.2f %.2f %.2f %.2f %.2f %.2f %.2f at octet %i\n", cube->tlf.x, cube->tlf.y, cube->tlf.z, cube->brb.x, cube->brb.y, cube->brb.z, cube->size, octet);
+		printf("inserting into cube tlf %.2f %.2f %.2f brb %.2f %.2f %.2f s %.2f at octet %i\n", cube->tlf.x, cube->tlf.y, cube->tlf.z, cube->brb.x, cube->brb.y, cube->brb.z, cube->size, octet);
 	    }
 
 	    cube_insert(cube->nodes[octet], point, color);
@@ -157,10 +163,16 @@ void cube_insert(cube_t* cube, v3_t point, uint32_t color)
 
 /* get cubes intersected by a line with given size
    multiple cubes can be returned if first cube is transparent
-   in case of refraction modify vector a little */
+   in case of refraction modify vector a little
+
+   if distance is smaller than cube half edge size then it is in the cube
+   if distance is smaller than cube center to corner size then nearby cubes should be tried
+   if distance is bigger than cube center to corner size then skip cube
+*/
 
 void cube_trace(cube_t* root, v3_t base, v3_t vector, float size)
 {
+    mt_log_debug("cube trace");
 }
 
 cube_t* basecube;
@@ -197,7 +209,7 @@ void collect_visible_cubes(cube_t* cube)
 	    v3_t cp = v3_add(slt, v3_resize(scr_hv, -hr)); // current point
 	    cp      = v3_add(cp, v3_resize(scr_vv, -vr));
 
-	    printf("%i:%i - %.3f %.3f %.3f\n", y, x, cp.x, cp.y, cp.z);
+	    // printf("%i:%i - %.3f %.3f %.3f\n", y, x, cp.x, cp.y, cp.z);
 
 	    v3_t csv = v3_sub(cp, cam_fp); // current screen vector
 
@@ -217,6 +229,36 @@ MessageCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei 
 void main_init()
 {
     srand((unsigned int) time(NULL));
+
+    // create points
+
+    floatbuffer = ku_floatbuffer_new();
+
+    for (int i = 0; i < 2; i++)
+    {
+	float data[3];
+	data[0] = -100.0 + (rand() % 200000) / 1000.0;
+	data[1] = -100.0 + (rand() % 200000) / 1000.0;
+	data[2] = -400.0 + (rand() % 200000) / 1000.0;
+
+	ku_floatbuffer_add(floatbuffer, data, 3);
+
+	mt_log_info("point added x %f y %f z %f", data[0], data[1], data[2]);
+    };
+
+    // build up voxels
+
+    basecube = cube_create(
+	0,
+	(v3_t){0.0, 0.0, 0.0},
+	(v3_t){100.0, 100.0, 100.0});
+
+    cube_describe(basecube, 0);
+    printf("adding %.2f %.2f %.2f\n", 10.0, 10.0, 10.0);
+    cube_insert(basecube, (v3_t){10.0, 10.0, 10.0}, 0xFFFFFFFF);
+    cube_describe(basecube, 0);
+
+    // init opengl
 
     glEnable(GL_DEBUG_OUTPUT);
     glDebugMessageCallback(MessageCallback, 0);
@@ -259,8 +301,6 @@ void main_init()
     glGenBuffers(1, &vbo);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
 
-    floatbuffer = ku_floatbuffer_new();
-
     // perspective
 
     float screenx      = 1920;
@@ -279,32 +319,14 @@ void main_init()
     pers              = m4_defaultperspective(camera_fov_y, screenx / screeny, 0.1, 500);
     projection.matrix = pers;
 
-    basecube = cube_create(
-	0,
-	(v3_t){0.0, 0.0, 0.0},
-	(v3_t){100.0, 100.0, 100.0});
-
-    cube_insert(basecube, (v3_t){10.0, 10.0, 10.0}, 0xFFFFFFFF);
+    collect_visible_cubes(basecube);
 
     glUniformMatrix4fv(sha.uni_loc[0], 1, 0, projection.array);
-
-    collect_visible_cubes(basecube);
 
     // upload vertex data
 
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 12, 0);
-
-    for (int i = 0; i < 2; i++)
-    {
-	float data[3];
-	data[0] = -100.0 + (rand() % 200000) / 1000.0;
-	data[1] = -100.0 + (rand() % 200000) / 1000.0;
-	data[2] = -400.0 + (rand() % 200000) / 1000.0;
-
-	ku_floatbuffer_add(floatbuffer, data, 3);
-    };
-
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * floatbuffer->pos, floatbuffer->data, GL_DYNAMIC_DRAW);
 
@@ -384,13 +406,12 @@ int main_loop(double time, void* userdata)
 
     m4_t trans100_matrix  = m4_defaulttranslation(0.0, 0.0, 300.0);
     m4_t transm100_matrix = m4_defaulttranslation(0.0, 0.0, -300.0);
+    m4_t angle_matrix     = m4_defaultrotation(0.0, angle, 0.0);
+    m4_t obj_matrix       = trans100_matrix;
 
-    m4_t angle_matrix = m4_defaultrotation(0.0, angle, 0.0);
-
-    m4_t obj_matrix = trans100_matrix;
-    obj_matrix      = m4_multiply(angle_matrix, obj_matrix);
-    obj_matrix      = m4_multiply(transm100_matrix, obj_matrix);
-    obj_matrix      = m4_multiply(pers, obj_matrix);
+    obj_matrix = m4_multiply(angle_matrix, obj_matrix);
+    obj_matrix = m4_multiply(transm100_matrix, obj_matrix);
+    obj_matrix = m4_multiply(pers, obj_matrix);
 
     angle += 0.001;
 
