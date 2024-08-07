@@ -112,8 +112,8 @@ void cube_insert(cube_t* cube, v3_t point, uint32_t color)
     if (cube->size > 30.0)
     {
 	if (cube->tlf.x <= point.x && point.x < cube->brb.x &&
-	    cube->tlf.y <= point.y && point.y < cube->brb.y &&
-	    cube->tlf.z <= point.z && point.z < cube->brb.z)
+	    cube->tlf.y >= point.y && point.y > cube->brb.y &&
+	    cube->tlf.z >= point.z && point.z > cube->brb.z)
 	{
 
 	    /* do speed tests on static const vs simple vars */
@@ -170,9 +170,14 @@ void cube_insert(cube_t* cube, v3_t point, uint32_t color)
    if distance is bigger than cube center to corner size then skip cube
 */
 
-void cube_trace(cube_t* root, v3_t base, v3_t vector, float size)
+void cube_trace(cube_t* cube, v3_t lineA, v3_t lineB, float size)
 {
-    mt_log_debug("cube trace");
+    // check distance of cube center and line
+
+    v3_t  cp       = v3_add(cube->tlf, (v3_t){cube->size / 2.0, -cube->size / 2.0, -cube->size / 2.0});
+    float distance = v3_distance_line(cp, lineA, lineB);
+
+    mt_log_debug("cp %.2f %.2f %.2f A %.2f %.2f %.2f B %.2f %.2f %.2f distance %.2f", cp.x, cp.y, cp.z, lineA.x, lineA.y, lineA.z, lineB.x, lineB.y, lineB.z, distance);
 }
 
 cube_t* basecube;
@@ -185,8 +190,8 @@ void collect_visible_cubes(cube_t* cube)
     float cam_ww = 100.0; // camera window width
     float cam_wh = 80.0;  // camera window height
 
-    v3_t cam_fp = (v3_t){0.0, 0.0, 200.0}; // camera focus point
-    v3_t cam_tp = (v3_t){0.0, 0.0, 0.0};   // camera target point
+    v3_t cam_fp = (v3_t){0.0, 50.0, 200.0}; // camera focus point
+    v3_t cam_tp = (v3_t){0.0, 50.0, 0.0};   // camera target point
 
     v3_t cam_v = v3_sub(cam_fp, cam_tp); // camera vector
     v3_t ver_v = {0.0, 1.0, 0.0};        // vertical vector
@@ -211,11 +216,11 @@ void collect_visible_cubes(cube_t* cube)
 
 	    // printf("%i:%i - %.3f %.3f %.3f\n", y, x, cp.x, cp.y, cp.z);
 
-	    v3_t csv = v3_sub(cp, cam_fp); // current screen vector
+	    // v3_t csv = v3_sub(cp, cam_fp); // current screen vector
 
 	    // get color of closest voxel at given detail
 
-	    cube_trace(cube, cp, csv, 50.0);
+	    cube_trace(cube, cam_fp, cp, 50.0);
 	}
     }
 }
@@ -250,12 +255,12 @@ void main_init()
 
     basecube = cube_create(
 	0,
-	(v3_t){0.0, 0.0, 0.0},
-	(v3_t){100.0, 100.0, 100.0});
+	(v3_t){0.0, 100.0, 0.0},
+	(v3_t){100.0, 0.0, -100.0});
 
     cube_describe(basecube, 0);
-    printf("adding %.2f %.2f %.2f\n", 10.0, 10.0, 10.0);
-    cube_insert(basecube, (v3_t){10.0, 10.0, 10.0}, 0xFFFFFFFF);
+    printf("adding %.2f %.2f %.2f\n", 10.0, 10.0, -10.0);
+    cube_insert(basecube, (v3_t){10.0, 10.0, -10.0}, 0xFFFFFFFF);
     cube_describe(basecube, 0);
 
     // init opengl

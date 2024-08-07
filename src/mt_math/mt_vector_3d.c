@@ -29,6 +29,8 @@ float v3_length(v3_t a);
 void  v3_toarray(v3_t* vector, float* result);
 float v3_distance(v3_t vectorA, v3_t vectorB);
 
+float v3_distance_line(v3_t vector, v3_t lineA, v3_t lineB);
+
 #endif
 #if __INCLUDE_LEVEL__ == 0
 
@@ -284,6 +286,17 @@ float v3_distance(v3_t vectorA, v3_t vectorB)
     dz = vectorB.z - vectorA.z;
 
     return sqrtf(dx * dx + dy * dy + dz * dz);
+}
+
+// magnitude(cross(A - B, C - B)) / magnitude(C - B)
+#include <stdio.h>
+float v3_distance_line(v3_t vector, v3_t lineA, v3_t lineB)
+{
+    v3_t ba    = v3_sub(lineA, vector);
+    v3_t bc    = v3_sub(lineB, lineA);
+    v3_t cross = v3_cross(ba, bc);
+    // printf("cross %.2f %.2f %.2f %f %f\n", cross.x, cross.y, cross.z, v3_length(cross), v3_length(bc));
+    return v3_length(cross) / v3_length(bc);
 }
 
 #endif
